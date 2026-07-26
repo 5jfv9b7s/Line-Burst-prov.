@@ -12,25 +12,22 @@
       <h1>Link Burst</h1>
       <p class="subtitle">つなげて、はじける、新しいオセロ。</p>
     </header>
-
     <section class="game-panel" aria-label="ゲーム画面">
-      <div id="status" class="status" role="status" aria-live="polite"></div>
-      <div id="score_board" class="score-board" aria-label="現在の得点">
-        <div id="black_score" class="score black-score"></div>
-        <div id="white_score" class="score white-score"></div>
+      <div class="game-controls" aria-label="対局設定">
+        <label>対戦 <select id="game_mode"><option value="local">ふたりで対戦</option><option value="cpu">CPU対戦（あなたは黒）</option></select></label>
+        <label>CPU <select id="difficulty"><option value="easy">初級</option><option value="normal" selected>中級</option><option value="hard">上級</option></select></label>
+        <label>持ち時間 <select id="time_limit"><option value="0">なし</option><option value="30">30秒</option><option value="60">60秒</option></select></label>
       </div>
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+      <div id="timer" class="timer" aria-live="polite">持ち時間：なし</div>
+      <div id="score_board" class="score-board" aria-label="現在の得点"><div id="black_score" class="score black-score"></div><div id="white_score" class="score white-score"></div></div>
       <div id="board" aria-label="Link Burst の盤面"></div>
-      <button id="restart_button" type="button">新しい対局</button>
+      <div class="action-buttons"><button id="undo_button" type="button">1手戻す</button><button id="restart_button" type="button">新しい対局</button></div>
     </section>
-
+    <section class="history" aria-labelledby="history-title"><h2 id="history-title">対局履歴</h2><ol id="history_list"><li>対局を開始しました。</li></ol></section>
     <section class="rules" aria-labelledby="rules-title">
       <h2 id="rules-title">遊び方</h2>
-      <ol>
-        <li>基本ルールはオセロと同じです。相手の石をはさめる場所に置きます。</li>
-        <li>同じ色の石が縦・横・斜めに4個以上連なると、両端を残して間の石がバーストして消えます。</li>
-        <li>中央の4マスの石は固定石です。バーストしても消えません。</li>
-        <li>置ける場所がなければパスです。両者が置けなくなった時点で、盤上の石が多い側の勝ちです。</li>
-      </ol>
+      <ol><li>基本ルールはオセロと同じです。相手の石をはさめる場所に置きます。</li><li>同じ色の石が縦・横・斜めに4個以上連なると、両端を残して間の石がバーストして消えます。</li><li>中央の4マスの石は固定石です。バーストしても消えません。</li><li>置ける場所がなければパスです。両者が置けなくなった時点で、盤上の石が多い側の勝ちです。</li></ol>
     </section>
   </main>
   <script src="LinkBurst_script.js"></script>
