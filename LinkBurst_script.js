@@ -194,6 +194,13 @@ function render() {
 
   elements.status.textContent = statusMessage;
   elements.undo.disabled = isAnimating || snapshots.length === 0 || isOnlineGame();
+  elements.undo.hidden = isOnlineGame();
+  elements.restart.disabled = isOnlineGame();
+  elements.restart.hidden = isOnlineGame();
+  const canSurrender = isOnlineGame() && !gameOver;
+  elements.home.textContent = canSurrender ? '投了' : 'ホームへ';
+  elements.home.classList.toggle('surrender-button', canSurrender);
+  elements.home.disabled = false;
 }
 
 function renderBoard() {
@@ -343,10 +350,12 @@ function applyMove(row, column, flippableStones) {
 
 function animateFlips(flippableStones, movingPlayer) {
   let index = 0;
+  const currentToken = actionToken;
 
   function flipNextStone() {
+    if (currentToken !== actionToken || gameOver) return;
     if (index >= flippableStones.length) {
-      setTimeout(checkBurstAndFinish, 400);
+      setTimeout(() => checkBurstAndFinish(currentToken), 400);
       return;
     }
 
@@ -365,7 +374,8 @@ function animateFlips(flippableStones, movingPlayer) {
   setTimeout(flipNextStone, 80);
 }
 
-function checkBurstAndFinish() {
+function checkBurstAndFinish(currentToken = actionToken) {
+  if (currentToken !== actionToken || gameOver) return;
   const burstTargets = getBurstTargets(board);
 
   if (!burstTargets.length) {
@@ -387,6 +397,7 @@ function checkBurstAndFinish() {
   renderHistory();
 
   setTimeout(() => {
+    if (currentToken !== actionToken || gameOver) return;
     burstTargets.forEach(({ row, column }) => {
       board[row][column] = 0;
     });
@@ -523,6 +534,27 @@ function endGame() {
   moveHistory.push(`\u30b2\u30fc\u30e0\u7d42\u4e86\uff1a${result}`);
   render();
   sendOnlineState();
+}
+
+function endGameByResignation(resigningPlayer) {
+  if (gameOver) return;
+
+  const winner = 3 - resigningPlayer;
+  gameOver = true;
+  isAnimating = false;
+  clearInterval(timerId);
+  statusMessage = `${playerName(resigningPlayer)}の投了。${playerName(winner)}の勝ち！`;
+  moveHistory.push(`${playerName(resigningPlayer)}が投了：${playerName(winner)}の勝ち`);
+  render();
+  sendOnlineState();
+}
+
+function resignOnlineGame() {
+  const player = onlinePlayer();
+  if (!isOnlineGame() || gameOver || !player) return;
+
+  window.onlineGame.send({ type: 'resign', player });
+  endGameByResignation(player);
 }
 
 function countStones() {
@@ -723,12 +755,15 @@ function undoMove() {
 }
 
 elements.restart.addEventListener('click', () => {
-  if (isOnlineGame() && !isOnlineHost()) return;
+  if (isOnlineGame()) return;
   resetGame();
 });
 elements.undo.addEventListener('click', undoMove);
 elements.start.addEventListener('click', startGameFromHome);
-elements.home.addEventListener('click', returnHome);
+elements.home.addEventListener('click', () => {
+  if (isOnlineGame() && !gameOver) resignOnlineGame();
+  else returnHome();
+});
 elements.homeMode.addEventListener('change', updateHomeCpuSetting);
 elements.mode.addEventListener('change', resetGame);
 elements.difficulty.addEventListener('change', resetGame);
@@ -755,6 +790,9 @@ window.addEventListener('online:message', (event) => {
     && message.row >= 0 && message.row < SIZE && message.column >= 0 && message.column < SIZE;
   if (message.type === 'move' && validPosition && isOnlineGame() && message.player === turn && onlinePlayer() !== turn) {
     makeMove(message.row, message.column, true);
+  }
+  if (message.type === 'resign' && isOnlineGame() && message.player === 3 - onlinePlayer()) {
+    endGameByResignation(message.player);
   }
 });
 

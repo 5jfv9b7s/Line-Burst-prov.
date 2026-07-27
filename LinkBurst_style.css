@@ -159,6 +159,9 @@ h1 { margin: 0; letter-spacing: .06em; }
 .action-buttons button:hover, .action-buttons button:focus-visible { background: #fff; outline: 2px solid #ffe088; outline-offset: 2px; }
 #undo_button { background: #294331; color: #eff5eb; }
 #undo_button:disabled { cursor: not-allowed; opacity: .45; }
+.action-buttons .surrender-button { background: #8d2f32; border-color: #bd6864; color: #fff; }
+.action-buttons .surrender-button:hover, .action-buttons .surrender-button:focus-visible { background: #b34245; }
+.action-buttons .surrender-button:disabled { cursor: default; opacity: .55; }
 
 .rules { margin-top: 24px; padding: 4px 14px; color: #dbe5dc; }
 .rules h2 { margin-bottom: 8px; font-size: 1.25rem; }

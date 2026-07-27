@@ -37,18 +37,30 @@ async function createOnlineRoom() {
     hostId: uid, guestId: null, status: 'waiting', createdAt: serverTimestamp(),
     settings: { scoreMode: byId('home_score_mode').value, timeControl: byId('home_time_limit').value }
   });
-  const url = new URL(location.href); url.searchParams.set('room', room.id);
-  byId('join_room_url').value = url; window.onlineRoomId = room.id;
+  byId('join_room_url').value = room.id; window.onlineRoomId = room.id;
   onlineStatus('ルームを作成しました。接続待ちです。'); await startHostPeer(room.id);
 }
 async function joinOnlineRoom() {
-  const roomId = new URL(byId('join_room_url').value).searchParams.get('room');
+  const roomId = getRoomId(byId('join_room_url').value);
   if (!roomId) throw new Error('招待URLを入力してください。');
   const { db, uid } = await window.firebaseReady; const roomRef = doc(db, 'rooms', roomId); const room = await getDoc(roomRef);
   if (!room.exists() || room.data().guestId) throw new Error('参加できないルームです。');
   await updateDoc(roomRef, { guestId: uid, status: 'joining' }); window.onlineRoomId = roomId;
   onlineStatus('参加しました。P2P接続を開始します。'); await startGuestPeer(roomId);
 }
+
+function getRoomId(value) {
+  const input = value.trim();
+  if (!input) return null;
+
+  // Old invite URLs remain accepted, but new rooms share only the compact ID.
+  try {
+    return new URL(input).searchParams.get('room');
+  } catch {
+    return /^[A-Za-z0-9_-]{1,128}$/.test(input) ? input : null;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const mode = byId('home_mode'); const lobby = byId('online_lobby');
   const update = () => { lobby.hidden = mode.value !== 'online'; }; mode.addEventListener('change', update); update();
