@@ -20,6 +20,15 @@ const elements = {
   mode: document.getElementById('game_mode'),
   difficulty: document.getElementById('difficulty'),
   timeLimit: document.getElementById('time_limit'),
+  homeScreen: document.getElementById('home_screen'),
+  gameScreen: document.getElementById('game_screen'),
+  homeMode: document.getElementById('home_mode'),
+  homeDifficulty: document.getElementById('home_difficulty'),
+  homeTimeLimit: document.getElementById('home_time_limit'),
+  homeScoreMode: document.getElementById('home_score_mode'),
+  homeCpuSetting: document.getElementById('home_cpu_setting'),
+  start: document.getElementById('start_button'),
+  home: document.getElementById('home_button'),
   undo: document.getElementById('undo_button'),
   restart: document.getElementById('restart_button')
 };
@@ -32,12 +41,16 @@ let statusMessage;
 let moveHistory;
 let snapshots;
 let remainingSeconds;
+let burstScores;
+let scoreMode = 'stones';
+let timeControl;
+let clocks;
 let timerId;
 let cpuTimeoutId;
 let actionToken = 0;
 
 function playerName(player) {
-  return player === BLACK ? 'Black' : 'White';
+  return player === BLACK ? '\u9ed2' : '\u767d';
 }
 
 function cloneBoard(sourceBoard) {
@@ -66,11 +79,14 @@ function resetGame() {
   board[3][4] = BLACK;
   board[4][3] = BLACK;
   board[4][4] = WHITE;
+  burstScores = { black: 0, white: 0 };
+  timeControl = parseTimeControl(elements.timeLimit.value);
+  clocks = { black: timeControl.initialSeconds, white: timeControl.initialSeconds };
 
   turn = BLACK;
   isAnimating = false;
   gameOver = false;
-  statusMessage = "Black's turn.";
+  statusMessage = '\u9ed2\u306e\u756a\u3067\u3059\u3002';
   moveHistory = [];
   snapshots = [];
 
@@ -82,6 +98,26 @@ function cancelPendingActions() {
   actionToken += 1;
   clearTimeout(cpuTimeoutId);
   clearInterval(timerId);
+}
+
+function startGameFromHome() {
+  elements.mode.value = elements.homeMode.value;
+  elements.difficulty.value = elements.homeDifficulty.value;
+  elements.timeLimit.value = elements.homeTimeLimit.value;
+  scoreMode = elements.homeScoreMode.value;
+  elements.homeScreen.hidden = true;
+  elements.gameScreen.hidden = false;
+  resetGame();
+}
+
+function updateHomeCpuSetting() {
+  elements.homeCpuSetting.hidden = elements.homeMode.value !== 'cpu';
+}
+
+function returnHome() {
+  cancelPendingActions();
+  elements.gameScreen.hidden = true;
+  elements.homeScreen.hidden = false;
 }
 
 function render() {
@@ -144,15 +180,34 @@ function createStone(player, row, column) {
 
 function renderScore() {
   const { black, white } = countStones();
+  const blackScore = getPlayerScore(BLACK, black);
+  const whiteScore = getPlayerScore(WHITE, white);
 
-  elements.blackScore.textContent = `Black ${black}`;
-  elements.whiteScore.textContent = `White ${white}`;
-  elements.blackScore.classList.toggle('leading', black > white);
-  elements.whiteScore.classList.toggle('leading', white > black);
+  elements.blackScore.textContent = formatScore(BLACK, black, blackScore);
+  elements.whiteScore.textContent = formatScore(WHITE, white, whiteScore);
+  elements.blackScore.classList.toggle('leading', blackScore > whiteScore);
+  elements.whiteScore.classList.toggle('leading', whiteScore > blackScore);
+}
+
+function getPlayerScore(player, stoneCount) {
+  const burstCount = player === BLACK ? burstScores.black : burstScores.white;
+
+  if (scoreMode === 'bursts') return burstCount;
+  if (scoreMode === 'combined') return stoneCount + burstCount * 10;
+  return stoneCount;
+}
+
+function formatScore(player, stoneCount, totalScore) {
+  const name = playerName(player);
+  const burstCount = player === BLACK ? burstScores.black : burstScores.white;
+
+  if (scoreMode === 'bursts') return `${name}  バースト ${burstCount}`;
+  if (scoreMode === 'combined') return `${name}  ${totalScore}点（石 ${stoneCount} + バースト ${burstCount}×10）`;
+  return `${name}  石 ${stoneCount}`;
 }
 
 function renderHistory() {
-  const historyEntries = moveHistory.length ? moveHistory : ['Game started.'];
+  const historyEntries = moveHistory.length ? moveHistory : ['\u5bfe\u5c40\u3092\u958b\u59cb\u3057\u307e\u3057\u305f\u3002'];
   elements.history.innerHTML = '';
 
   historyEntries.forEach((entry) => {
@@ -165,12 +220,29 @@ function renderHistory() {
 }
 
 function renderTimer() {
-  const hasTimeLimit = Number(elements.timeLimit.value) > 0;
-
-  elements.timer.textContent = hasTimeLimit
-    ? `Time left: ${remainingSeconds}s`
-    : 'Time limit: none';
+  if (timeControl.type === 'none') {
+    elements.timer.textContent = '\u6301\u3061\u6642\u9593\uff1a\u306a\u3057';
+  } else if (timeControl.type === 'turn') {
+    elements.timer.textContent = `1\u624b\u6b8b\u308a\u6642\u9593\uff1a${remainingSeconds}\u79d2`;
+  } else {
+    elements.timer.textContent = `\u30c1\u30a7\u30b9\u6642\u8a08  \u9ed2 ${formatClock(clocks.black)} / \u767d ${formatClock(clocks.white)}  (+${timeControl.incrementSeconds}\u79d2)`;
+  }
   elements.timer.classList.toggle('warning', remainingSeconds > 0 && remainingSeconds <= 10);
+}
+
+function parseTimeControl(value) {
+  if (value === 'none') return { type: 'none', initialSeconds: 0, incrementSeconds: 0 };
+
+  const [type, initial, increment] = value.split('-');
+  if (type === 'turn') return { type, initialSeconds: Number(initial), incrementSeconds: 0 };
+  return { type: 'chess', initialSeconds: Number(initial), incrementSeconds: Number(increment) };
+}
+
+function formatClock(seconds) {
+  const safeSeconds = Math.max(0, seconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const remaining = String(safeSeconds % 60).padStart(2, '0');
+  return `${minutes}:${remaining}`;
 }
 
 // ----- Move handling and burst rules -----
@@ -189,8 +261,8 @@ function applyMove(row, column, flippableStones) {
   const movingPlayer = turn;
 
   board[row][column] = movingPlayer;
-  moveHistory.push(`${playerName(movingPlayer)}: ${row + 1}, ${column + 1} (${flippableStones.length} flips)`);
-  statusMessage = `${playerName(movingPlayer)} placed a stone.`;
+  moveHistory.push(`${playerName(movingPlayer)}\uff1a${row + 1}\u884c${column + 1}\u5217\u306b\u7f6e\u304f\uff08${flippableStones.length}\u679a\u8fd4\u3057\uff09`);
+  statusMessage = `${playerName(movingPlayer)}\u304c\u77f3\u3092\u7f6e\u304d\u307e\u3057\u305f\u3002`;
   isAnimating = true;
   clearInterval(timerId);
 
@@ -236,8 +308,10 @@ function checkBurstAndFinish() {
       ?.classList.add('bursting');
   });
 
-  moveHistory.push(`${burstTargets.length} stones burst!`);
-  statusMessage = `${burstTargets.length} stones burst!`;
+  moveHistory.push(`${burstTargets.length}\u500b\u306e\u77f3\u304c\u30d0\u30fc\u30b9\u30c8\uff01`);
+  if (turn === BLACK) burstScores.black += burstTargets.length;
+  else burstScores.white += burstTargets.length;
+  statusMessage = `${burstTargets.length}\u500b\u306e\u77f3\u304c\u30d0\u30fc\u30b9\u30c8\uff01`;
   elements.status.textContent = statusMessage;
   renderHistory();
 
@@ -320,14 +394,22 @@ function makeLine(row, column, rowStep, columnStep) {
 // ----- Turn, pass and game over -----
 
 function finishTurn() {
+  applyChessIncrement();
   isAnimating = false;
   turn = 3 - turn;
   checkPassAndGameOver();
 }
 
+function applyChessIncrement() {
+  if (timeControl.type !== 'chess') return;
+
+  if (turn === BLACK) clocks.black += timeControl.incrementSeconds;
+  else clocks.white += timeControl.incrementSeconds;
+}
+
 function checkPassAndGameOver() {
   if (hasValidMoves(turn)) {
-    statusMessage = `${playerName(turn)}'s turn.`;
+    statusMessage = `${playerName(turn)}\u306e\u756a\u3067\u3059\u3002`;
     render();
     startTurnTimer();
     if (isCpuTurn()) scheduleCpuMove();
@@ -338,26 +420,34 @@ function checkPassAndGameOver() {
   const opponent = 3 - turn;
 
   if (hasValidMoves(opponent)) {
-    turn = opponent;
-    moveHistory.push(`${playerName(passedPlayer)} passes.`);
-    statusMessage = `${playerName(passedPlayer)} passes. ${playerName(turn)}'s turn.`;
-    render();
-    startTurnTimer();
-    if (isCpuTurn()) scheduleCpuMove();
+    completePass();
     return;
   }
 
   endGame();
 }
 
+function completePass() {
+  const passedPlayer = turn;
+
+  turn = 3 - turn;
+  moveHistory.push(`${playerName(passedPlayer)}\u306f\u30d1\u30b9`);
+  statusMessage = `${playerName(passedPlayer)}\u306f\u30d1\u30b9\u3067\u3059\u3002${playerName(turn)}\u306e\u756a\u3067\u3059\u3002`;
+  render();
+  startTurnTimer();
+  if (isCpuTurn()) scheduleCpuMove();
+}
+
 function endGame() {
   const { black, white } = countStones();
-  const result = black === white ? 'Draw!' : `${black > white ? 'Black' : 'White'} wins!`;
+  const blackScore = getPlayerScore(BLACK, black);
+  const whiteScore = getPlayerScore(WHITE, white);
+  const result = blackScore === whiteScore ? '\u5f15\u304d\u5206\u3051\uff01' : `${blackScore > whiteScore ? '\u9ed2' : '\u767d'}\u306e\u52dd\u3061\uff01`;
 
   gameOver = true;
   clearInterval(timerId);
-  statusMessage = `Game over: Black ${black} - White ${white}. ${result}`;
-  moveHistory.push(`Game over: ${result}`);
+  statusMessage = `\u30b2\u30fc\u30e0\u7d42\u4e86\uff1a\u9ed2 ${blackScore} - \u767d ${whiteScore}\u3002${result}`;
+  moveHistory.push(`\u30b2\u30fc\u30e0\u7d42\u4e86\uff1a${result}`);
   render();
 }
 
@@ -414,7 +504,7 @@ function getFlippableStones(startRow, startColumn, player) {
 
 function scheduleCpuMove() {
   isAnimating = true;
-  statusMessage = 'CPU is thinking...';
+  statusMessage = 'CPU\u304c\u8003\u3048\u3066\u3044\u307e\u3059\u2026';
   render();
 
   const currentToken = actionToken;
@@ -467,13 +557,22 @@ function evaluateCpuMove(move) {
 
 function startTurnTimer() {
   clearInterval(timerId);
-  remainingSeconds = Number(elements.timeLimit.value);
+  if (timeControl.type === 'turn') remainingSeconds = timeControl.initialSeconds;
+  if (timeControl.type === 'chess') remainingSeconds = turn === BLACK ? clocks.black : clocks.white;
   renderTimer();
 
-  if (!remainingSeconds || gameOver || isCpuTurn()) return;
+  if (timeControl.type === 'none' || gameOver || isCpuTurn()) return;
 
   timerId = setInterval(() => {
-    remainingSeconds -= 1;
+    if (timeControl.type === 'turn') {
+      remainingSeconds -= 1;
+    } else if (turn === BLACK) {
+      clocks.black -= 1;
+      remainingSeconds = clocks.black;
+    } else {
+      clocks.white -= 1;
+      remainingSeconds = clocks.white;
+    }
     renderTimer();
 
     if (remainingSeconds <= 0) {
@@ -486,11 +585,25 @@ function startTurnTimer() {
 function handleTimeOut() {
   if (isAnimating || gameOver) return;
 
+  if (timeControl.type === 'chess') {
+    endGameByTime();
+    return;
+  }
+
   saveSnapshot();
-  moveHistory.push(`${playerName(turn)} timed out and passes.`);
-  statusMessage = `${playerName(turn)} timed out and passes.`;
+  moveHistory.push(`${playerName(turn)}\u306f\u6642\u9593\u5207\u308c\u3067\u30d1\u30b9`);
+  statusMessage = `${playerName(turn)}\u306f\u6642\u9593\u5207\u308c\u3067\u30d1\u30b9\u3067\u3059\u3002`;
   turn = 3 - turn;
   checkPassAndGameOver();
+}
+
+function endGameByTime() {
+  const winner = 3 - turn;
+
+  gameOver = true;
+  statusMessage = `${playerName(turn)}\u306f\u6642\u9593\u5207\u308c\u3002${playerName(winner)}\u306e\u52dd\u3061\uff01`;
+  moveHistory.push(`\u6642\u9593\u5207\u308c\uff1a${playerName(winner)}\u306e\u52dd\u3061`);
+  render();
 }
 
 function saveSnapshot() {
@@ -498,7 +611,9 @@ function saveSnapshot() {
     board: cloneBoard(board),
     turn,
     moves: [...moveHistory],
+    burstScores: { ...burstScores },
     remainingSeconds,
+    clocks: { ...clocks },
     statusMessage
   });
 }
@@ -520,8 +635,10 @@ function undoMove() {
   board = cloneBoard(snapshot.board);
   turn = snapshot.turn;
   moveHistory = snapshot.moves;
+  burstScores = { ...snapshot.burstScores };
   remainingSeconds = snapshot.remainingSeconds;
-  statusMessage = 'Move undone.';
+  clocks = { ...snapshot.clocks };
+  statusMessage = '1\u624b\u623b\u3057\u307e\u3057\u305f\u3002';
   gameOver = false;
   isAnimating = false;
 
@@ -531,8 +648,12 @@ function undoMove() {
 
 elements.restart.addEventListener('click', resetGame);
 elements.undo.addEventListener('click', undoMove);
+elements.start.addEventListener('click', startGameFromHome);
+elements.home.addEventListener('click', returnHome);
+elements.homeMode.addEventListener('change', updateHomeCpuSetting);
 elements.mode.addEventListener('change', resetGame);
 elements.difficulty.addEventListener('change', resetGame);
 elements.timeLimit.addEventListener('change', resetGame);
 
 resetGame();
+updateHomeCpuSetting();

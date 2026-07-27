@@ -9,6 +9,17 @@
 
 body { margin: 0; min-width: 320px; }
 
+/* Home and game are separate screens, never vertically stacked. */
+.home-screen[hidden],
+.game-screen[hidden] { display: none !important; }
+
+.game-screen { animation: screen-in .22s ease-out; }
+
+@keyframes screen-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .game-shell {
   width: min(95vw, 620px);
   margin: 0 auto;
@@ -18,6 +29,34 @@ body { margin: 0; min-width: 320px; }
 header { text-align: center; }
 h1 { margin: 0; letter-spacing: .06em; }
 .subtitle { margin: 6px 0 20px; color: #b9c8b9; }
+
+.home-screen {
+  display: grid;
+  min-height: 520px;
+  place-items: center;
+  padding: 12px;
+  border: 5px solid #0a0f0b;
+  background-color: #2d7c42;
+  box-shadow: inset 0 0 0 5px #152018, 0 10px 28px rgb(0 0 0 / 25%);
+}
+.home-card {
+  width: min(100%, 460px);
+  padding: 30px;
+  border: 3px solid #0a0f0b;
+  border-radius: 12px;
+  background: rgb(24 37 27 / 94%);
+  box-shadow: 0 12px 26px rgb(0 0 0 / 42%);
+  text-align: center;
+}
+.home-card h2 { margin: 8px 0; font-size: 1.8rem; }
+.home-card > p:not(.eyebrow) { margin: 0 0 24px; color: #d5e2d7; line-height: 1.6; }
+.eyebrow { margin: 0; color: #ffd86a; font-size: .75rem; font-weight: 800; letter-spacing: .16em; }
+.home-settings { display: grid; gap: 13px; margin-bottom: 22px; text-align: left; }
+.home-settings label { display: grid; gap: 5px; color: #d5e2d7; font-size: .85rem; }
+.home-settings [hidden] { display: none !important; }
+.home-settings select { padding: 10px; border: 1px solid #77a182; border-radius: 7px; background: #235e35; color: #fff; font: inherit; }
+.start-button { width: 100%; padding: 13px 18px; border: 2px solid #0a0f0b; border-radius: 8px; background: #eff5eb; color: #172019; font: inherit; font-weight: 800; cursor: pointer; }
+.start-button:hover, .start-button:focus-visible { background: #fff; outline: 2px solid #ffe088; outline-offset: 2px; }
 
 .game-panel {
   display: flex;
