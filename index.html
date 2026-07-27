@@ -28,7 +28,7 @@
             <select id="home_mode">
               <option value="local">ふたりで対戦</option>
               <option value="cpu">CPU対戦（あなたは黒）</option>
-              <option value="online">???????</option>
+              <option value="online">オンライン対戦 P2P</option>
             </select>
           </label>
           
@@ -64,9 +64,9 @@
           </label>
         </div>
         <div id="online_lobby" class="online-lobby" hidden>
-          <button id="create_room_button" type="button">????????</button>
-          <label>??URL<input id="join_room_url" type="url" placeholder="??URL?????"></label>
-          <button id="join_room_button" type="button">??????</button>
+          <button id="create_room_button" type="button">部屋を作成</button>
+          <label>Invite URL<input id="join_room_url" type="url" placeholder="Invite URL?????"></label>
+          <button id="join_room_button" type="button">部屋に参加</button>
           <p id="online_status" role="status" aria-live="polite"></p>
         </div>
         <button id="start_button" class="start-button" type="button">ゲームスタート</button>
@@ -80,9 +80,16 @@
         <input id="time_limit" type="hidden" value="none">
         <div id="status" class="status" role="status" aria-live="polite"></div>
         <div id="timer" class="timer" aria-live="polite"></div>
-        <div id="score_board" class="score-board"><div id="black_score" class="score black-score"></div><div id="white_score" class="score white-score"></div></div>
+        <div id="score_board" class="score-board">
+          <div id="black_score" class="score black-score"></div>
+          <div id="white_score" class="score white-score"></div>
+        </div>
         <div id="board" aria-label="Link Burstの盤面"></div>
-        <div class="action-buttons"><button id="undo_button" type="button">1手戻す</button><button id="restart_button" type="button">新しい対局</button><button id="home_button" type="button">ホームへ</button></div>
+        <div class="action-buttons">
+          <button id="undo_button" type="button">1手戻す</button>
+          <button id="restart_button" type="button">新しい対局</button>
+          <button id="home_button" type="button">ホームへ</button>
+        </div>
       </div>
       
       <section class="history">

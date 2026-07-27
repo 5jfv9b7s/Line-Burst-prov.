@@ -27,6 +27,7 @@ const elements = {
   homeTimeLimit: document.getElementById('home_time_limit'),
   homeScoreMode: document.getElementById('home_score_mode'),
   homeCpuSetting: document.getElementById('home_cpu_setting'),
+  onlineLobby: document.getElementById('online_lobby'),
   start: document.getElementById('start_button'),
   home: document.getElementById('home_button'),
   undo: document.getElementById('undo_button'),
@@ -112,6 +113,9 @@ function startGameFromHome() {
 
 function updateHomeCpuSetting() {
   elements.homeCpuSetting.hidden = elements.homeMode.value !== 'cpu';
+  const isOnline = elements.homeMode.value === 'online';
+  elements.onlineLobby.hidden = !isOnline;
+  elements.onlineLobby.style.display = isOnline ? 'grid' : 'none';
 }
 
 function returnHome() {
