@@ -3,6 +3,7 @@ const BLACK = 1;
 const WHITE = 2;
 const CPU_DELAY = 550;
 const FLIP_DELAY = 90;
+const ONLINE_INTRO_DELAY = 6000;
 
 const DIRECTIONS = [
   [-1, -1], [-1, 0], [-1, 1],
@@ -28,6 +29,8 @@ const elements = {
   homeScoreMode: document.getElementById('home_score_mode'),
   homeCpuSetting: document.getElementById('home_cpu_setting'),
   onlineLobby: document.getElementById('online_lobby'),
+  onlineIntro: document.getElementById('online_match_intro'),
+  onlineIntroRules: document.getElementById('online_match_rules'),
   start: document.getElementById('start_button'),
   home: document.getElementById('home_button'),
   undo: document.getElementById('undo_button'),
@@ -48,6 +51,7 @@ let timeControl;
 let clocks;
 let timerId;
 let cpuTimeoutId;
+let onlineIntroTimeoutId;
 let actionToken = 0;
 
 function playerName(player) {
@@ -82,6 +86,52 @@ function onlinePlayer() {
 
 function isOnlineHost() {
   return isOnlineGame() && window.onlineGame?.isHost === true;
+}
+
+function timeControlLabel() {
+  if (elements.homeTimeLimit.value === 'none') return '持ち時間：なし';
+  const control = parseTimeControl(elements.homeTimeLimit.value);
+  if (control.type === 'turn') return `持ち時間：1手 ${control.initialSeconds}秒`;
+  return `持ち時間：${control.initialSeconds / 60}分 + ${control.incrementSeconds}秒`;
+}
+
+function scoreModeLabel() {
+  return ({ stones: '石の枚数', bursts: 'バースト数', combined: '石の枚数 + バースト×10' })[scoreMode] || '石の枚数';
+}
+
+function showOnlineIntro(waitingForHost = false) {
+  const player = onlinePlayer();
+  const rules = [
+    player ? `あなたの石：${playerName(player)}` : 'あなたの石を決定中',
+    timeControlLabel(),
+    `得点方式：${scoreModeLabel()}`,
+    '同色の石が4つ以上連なると、中間の石がバースト'
+  ];
+  elements.onlineIntroRules.replaceChildren(...rules.map((rule) => {
+    const item = document.createElement('li');
+    item.textContent = rule;
+    return item;
+  }));
+  elements.onlineIntro.querySelector('h2').textContent = waitingForHost ? 'ホストの開始を待っています…' : '対局を準備中…';
+  elements.onlineIntro.hidden = false;
+  elements.gameScreen.classList.add('intro-active');
+}
+
+function hideOnlineIntro() {
+  clearTimeout(onlineIntroTimeoutId);
+  elements.onlineIntro.hidden = true;
+  elements.gameScreen.classList.remove('intro-active');
+}
+
+function beginOnlineGame() {
+  showOnlineIntro(!isOnlineHost());
+  if (!isOnlineHost()) return;
+
+  window.onlineGame.send({ type: 'match-starting' });
+  onlineIntroTimeoutId = setTimeout(() => {
+    hideOnlineIntro();
+    resetGame();
+  }, ONLINE_INTRO_DELAY);
 }
 
 function sendOnlineState() {
@@ -123,6 +173,7 @@ function applyOnlineState(state) {
   snapshots = [];
   elements.homeScreen.hidden = true;
   elements.gameScreen.hidden = false;
+  hideOnlineIntro();
   render();
 }
 
@@ -170,7 +221,8 @@ function startGameFromHome() {
   scoreMode = elements.homeScoreMode.value;
   elements.homeScreen.hidden = true;
   elements.gameScreen.hidden = false;
-  resetGame();
+  if (isOnlineGame()) beginOnlineGame();
+  else resetGame();
 }
 
 function updateHomeCpuSetting() {
@@ -182,6 +234,7 @@ function updateHomeCpuSetting() {
 
 function returnHome() {
   cancelPendingActions();
+  hideOnlineIntro();
   elements.gameScreen.hidden = true;
   elements.homeScreen.hidden = false;
 }
@@ -775,6 +828,7 @@ window.addEventListener('online:assignment', (event) => {
   if (settings) {
     elements.homeScoreMode.value = settings.scoreMode;
     elements.homeTimeLimit.value = settings.timeControl;
+    scoreMode = settings.scoreMode;
   }
   const player = window.onlineGame.isHost ? event.detail.hostColor : 3 - event.detail.hostColor;
   document.getElementById('online_status').textContent = `あなたは${playerName(player)}です。開始できます。`;
@@ -782,6 +836,12 @@ window.addEventListener('online:assignment', (event) => {
 
 window.addEventListener('online:message', (event) => {
   const message = event.detail;
+  if (message.type === 'match-starting' && isOnlineGame()) {
+    elements.homeScreen.hidden = true;
+    elements.gameScreen.hidden = false;
+    showOnlineIntro();
+    return;
+  }
   if (message.type === 'state') {
     applyOnlineState(message.state);
     return;
