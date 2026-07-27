@@ -28,6 +28,7 @@
             <select id="home_mode">
               <option value="local">ふたりで対戦</option>
               <option value="cpu">CPU対戦（あなたは黒）</option>
+              <option value="online">???????</option>
             </select>
           </label>
           
@@ -62,6 +63,12 @@
             </select>
           </label>
         </div>
+        <div id="online_lobby" class="online-lobby" hidden>
+          <button id="create_room_button" type="button">????????</button>
+          <label>??URL<input id="join_room_url" type="url" placeholder="??URL?????"></label>
+          <button id="join_room_button" type="button">??????</button>
+          <p id="online_status" role="status" aria-live="polite"></p>
+        </div>
         <button id="start_button" class="start-button" type="button">ゲームスタート</button>
       </div>
     </section>
@@ -94,6 +101,7 @@
       </section>
     </section>
   </main>
+  <script type="module" src="firebase-init.js"></script>
   <script src="LinkBurst_script.js"></script>
 </body>
 </html>
