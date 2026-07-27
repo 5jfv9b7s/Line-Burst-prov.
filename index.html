@@ -22,15 +22,50 @@
         <p class="eyebrow">LINK - FLIP - BURST</p>
         <h2 id="home-title">Link Burst</h2>
         <p>4つ以上の石をつなげてバーストさせよう。</p>
+        
         <div class="home-settings">
-          <label>対戦<select id="home_mode"><option value="local">ふたりで対戦</option><option value="cpu">CPU対戦（あなたは黒）</option></select></label>
-          <label id="home_cpu_setting">CPU難易度<select id="home_difficulty"><option value="easy">初級</option><option value="normal" selected>中級</option><option value="hard">上級</option></select></label>
-          <label>持ち時間<select id="home_time_limit"><option value="none">なし</option><optgroup label="1手制限"><option value="turn-30">1手 30秒</option><option value="turn-60">1手 60秒</option></optgroup><optgroup label="チェス時計（持ち時間 + 着手加算）"><option value="chess-180-2">3分 + 2秒</option><option value="chess-300-3">5分 + 3秒</option><option value="chess-600-5">10分 + 5秒</option></optgroup></select></label>
-          <label>スコア方式<select id="home_score_mode"><option value="stones">石の枚数</option><option value="bursts">バースト数</option><option value="combined">混同（石の枚数 + バースト数 × 10）</option></select></label>
+          <label>対戦
+            <select id="home_mode">
+              <option value="local">ふたりで対戦</option>
+              <option value="cpu">CPU対戦（あなたは黒）</option>
+            </select>
+          </label>
+          
+          <label id="home_cpu_setting">CPU難易度
+            <select id="home_difficulty">
+              <option value="easy">初級</option>
+              <option value="normal" selected>中級</option>
+              <option value="hard">上級</option>
+            </select>
+          </label>
+          
+          <label>持ち時間
+            <select id="home_time_limit">
+              <option value="none">なし</option>
+              <optgroup label="1手制限">
+                <option value="turn-30">1手 30秒</option>
+                <option value="turn-60">1手 60秒</option>
+              </optgroup>
+              <optgroup label="チェス時計（持ち時間 + 着手加算）">
+                <option value="chess-180-2">3分 + 2秒</option>
+                <option value="chess-300-3">5分 + 3秒</option>
+                <option value="chess-600-5">10分 + 5秒</option>
+              </optgroup>
+            </select>
+          </label>
+          
+          <label>スコア方式
+            <select id="home_score_mode">
+              <option value="stones">石の枚数</option>
+              <option value="bursts">バースト数</option>
+              <option value="combined">混同（石の枚数 + バースト数 × 10）</option>
+            </select>
+          </label>
         </div>
         <button id="start_button" class="start-button" type="button">ゲームスタート</button>
       </div>
     </section>
+    
     <section id="game_screen" class="game-screen" aria-label="ゲーム画面" hidden>
       <div class="game-panel">
         <input id="game_mode" type="hidden" value="local">
@@ -42,10 +77,12 @@
         <div id="board" aria-label="Link Burstの盤面"></div>
         <div class="action-buttons"><button id="undo_button" type="button">1手戻す</button><button id="restart_button" type="button">新しい対局</button><button id="home_button" type="button">ホームへ</button></div>
       </div>
+      
       <section class="history">
         <h2>対局履歴</h2>
         <ol id="history_list"></ol>
       </section>
+
       <section class="rules">
         <h2>遊び方</h2>
         <ol>
