@@ -233,8 +233,10 @@ function updateHomeCpuSetting() {
 }
 
 function returnHome() {
+  const wasOnlineGame = isOnlineGame();
   cancelPendingActions();
   hideOnlineIntro();
+  if (wasOnlineGame) document.getElementById('join_room_url').value = '';
   elements.gameScreen.hidden = true;
   elements.homeScreen.hidden = false;
 }
