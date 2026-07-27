@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
-import { getFirestore } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+import { getFirestore, collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyD8T63dMy-7Tl66_0s9iFS58wCDVu3Sp8s',
@@ -27,3 +27,49 @@ window.firebaseReady = signInAnonymously(auth)
     console.error('Firebase anonymous sign-in failed.', error);
     throw error;
   });
+
+const byId = (id) => document.getElementById(id);
+const onlineStatus = (message) => { byId('online_status').textContent = message; };
+
+async function createOnlineRoom() {
+  const { db, uid } = await window.firebaseReady;
+  const room = await addDoc(collection(db, 'rooms'), {
+    hostId: uid, guestId: null, status: 'waiting', createdAt: serverTimestamp(),
+    settings: { scoreMode: byId('home_score_mode').value, timeControl: byId('home_time_limit').value }
+  });
+  const url = new URL(location.href); url.searchParams.set('room', room.id);
+  byId('join_room_url').value = url; window.onlineRoomId = room.id;
+  onlineStatus('ルームを作成しました。接続待ちです。'); await startHostPeer(room.id);
+}
+async function joinOnlineRoom() {
+  const roomId = new URL(byId('join_room_url').value).searchParams.get('room');
+  if (!roomId) throw new Error('招待URLを入力してください。');
+  const { db, uid } = await window.firebaseReady; const roomRef = doc(db, 'rooms', roomId); const room = await getDoc(roomRef);
+  if (!room.exists() || room.data().guestId) throw new Error('参加できないルームです。');
+  await updateDoc(roomRef, { guestId: uid, status: 'joining' }); window.onlineRoomId = roomId;
+  onlineStatus('参加しました。P2P接続を開始します。'); await startGuestPeer(roomId);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const mode = byId('home_mode'); const lobby = byId('online_lobby');
+  const update = () => { lobby.hidden = mode.value !== 'online'; }; mode.addEventListener('change', update); update();
+  byId('create_room_button').addEventListener('click', () => createOnlineRoom().catch(e => onlineStatus(`作成できません：${e.message}`)));
+  byId('join_room_button').addEventListener('click', () => joinOnlineRoom().catch(e => onlineStatus(`参加できません：${e.message}`)));
+});
+const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+function wireChannel(channel) {
+  channel.onopen = () => onlineStatus('P2P接続が完了しました。');
+  channel.onmessage = (event) => console.info('P2P message:', event.data);
+  channel.onclose = () => onlineStatus('P2P接続が切断されました。');
+}
+async function startHostPeer(roomId) {
+  const { db } = await window.firebaseReady; const roomRef = doc(db, 'rooms', roomId); const peer = new RTCPeerConnection(rtcConfig); wireChannel(peer.createDataChannel('link-burst'));
+  peer.onicecandidate = ({ candidate }) => { if (candidate) updateDoc(roomRef, { hostCandidate: candidate.toJSON() }); };
+  const offer = await peer.createOffer(); await peer.setLocalDescription(offer); await updateDoc(roomRef, { offer: { type: offer.type, sdp: offer.sdp } });
+  onSnapshot(roomRef, async (snapshot) => { const data = snapshot.data(); if (data?.answer && !peer.currentRemoteDescription) await peer.setRemoteDescription(data.answer); if (data?.guestCandidate) await peer.addIceCandidate(data.guestCandidate); });
+}
+async function startGuestPeer(roomId) {
+  const { db } = await window.firebaseReady; const roomRef = doc(db, 'rooms', roomId); const room = await getDoc(roomRef); const peer = new RTCPeerConnection(rtcConfig);
+  peer.ondatachannel = (event) => wireChannel(event.channel); peer.onicecandidate = ({ candidate }) => { if (candidate) updateDoc(roomRef, { guestCandidate: candidate.toJSON() }); };
+  await peer.setRemoteDescription(room.data().offer); const answer = await peer.createAnswer(); await peer.setLocalDescription(answer); await updateDoc(roomRef, { answer: { type: answer.type, sdp: answer.sdp } });
+  onSnapshot(roomRef, async (snapshot) => { const data = snapshot.data(); if (data?.hostCandidate) await peer.addIceCandidate(data.hostCandidate); });
+}
