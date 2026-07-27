@@ -70,6 +70,62 @@ function isCpuTurn() {
   return isCpuGame() && turn === WHITE;
 }
 
+function isOnlineGame() {
+  return elements.mode.value === 'online';
+}
+
+function onlinePlayer() {
+  const game = window.onlineGame;
+  if (!isOnlineGame() || !game?.assignment) return null;
+  return game.isHost ? game.assignment.hostColor : 3 - game.assignment.hostColor;
+}
+
+function isOnlineHost() {
+  return isOnlineGame() && window.onlineGame?.isHost === true;
+}
+
+function sendOnlineState() {
+  if (!isOnlineHost()) return;
+
+  window.onlineGame.send({
+    type: 'state',
+    state: {
+      board: cloneBoard(board),
+      turn,
+      moves: [...moveHistory],
+      burstScores: { ...burstScores },
+      remainingSeconds,
+      clocks: { ...clocks },
+      statusMessage,
+      gameOver,
+      scoreMode,
+      timeLimit: elements.timeLimit.value
+    }
+  });
+}
+
+function applyOnlineState(state) {
+  if (!isOnlineGame() || !state?.board || isOnlineHost()) return;
+
+  cancelPendingActions();
+  board = cloneBoard(state.board);
+  turn = state.turn;
+  moveHistory = [...state.moves];
+  burstScores = { ...state.burstScores };
+  remainingSeconds = state.remainingSeconds;
+  clocks = { ...state.clocks };
+  statusMessage = state.statusMessage;
+  gameOver = state.gameOver;
+  scoreMode = state.scoreMode;
+  elements.timeLimit.value = state.timeLimit;
+  timeControl = parseTimeControl(state.timeLimit);
+  isAnimating = false;
+  snapshots = [];
+  elements.homeScreen.hidden = true;
+  elements.gameScreen.hidden = false;
+  render();
+}
+
 // ----- Game setup and UI rendering -----
 
 function resetGame() {
@@ -93,6 +149,7 @@ function resetGame() {
 
   render();
   startTurnTimer();
+  sendOnlineState();
 }
 
 function cancelPendingActions() {
@@ -102,6 +159,11 @@ function cancelPendingActions() {
 }
 
 function startGameFromHome() {
+  if (elements.homeMode.value === 'online' && !window.onlineGame?.assignment) {
+    const status = document.getElementById('online_status');
+    status.textContent = 'P2P接続と色の決定を待っています。';
+    return;
+  }
   elements.mode.value = elements.homeMode.value;
   elements.difficulty.value = elements.homeDifficulty.value;
   elements.timeLimit.value = elements.homeTimeLimit.value;
@@ -131,11 +193,12 @@ function render() {
   renderTimer();
 
   elements.status.textContent = statusMessage;
-  elements.undo.disabled = isAnimating || snapshots.length === 0;
+  elements.undo.disabled = isAnimating || snapshots.length === 0 || isOnlineGame();
 }
 
 function renderBoard() {
-  const boardIsDisabled = isAnimating || gameOver || isCpuTurn();
+  const boardIsDisabled = isAnimating || gameOver || isCpuTurn()
+    || (isOnlineGame() && onlinePlayer() !== turn);
 
   elements.board.innerHTML = '';
   elements.board.className = `turn-${turn}`;
@@ -251,13 +314,17 @@ function formatClock(seconds) {
 
 // ----- Move handling and burst rules -----
 
-function makeMove(row, column) {
+function makeMove(row, column, fromRemote = false) {
   if (isAnimating || gameOver || isCpuTurn() || board[row][column] !== 0) return;
+  if (isOnlineGame() && !fromRemote && onlinePlayer() !== turn) return;
 
   const flippableStones = getFlippableStones(row, column, turn);
   if (!flippableStones.length) return;
 
   saveSnapshot();
+  if (isOnlineGame() && !fromRemote) {
+    window.onlineGame.send({ type: 'move', row, column, player: turn });
+  }
   applyMove(row, column, flippableStones);
 }
 
@@ -417,6 +484,7 @@ function checkPassAndGameOver() {
     render();
     startTurnTimer();
     if (isCpuTurn()) scheduleCpuMove();
+    sendOnlineState();
     return;
   }
 
@@ -440,6 +508,7 @@ function completePass() {
   render();
   startTurnTimer();
   if (isCpuTurn()) scheduleCpuMove();
+  sendOnlineState();
 }
 
 function endGame() {
@@ -453,6 +522,7 @@ function endGame() {
   statusMessage = `\u30b2\u30fc\u30e0\u7d42\u4e86\uff1a\u9ed2 ${blackScore} - \u767d ${whiteScore}\u3002${result}`;
   moveHistory.push(`\u30b2\u30fc\u30e0\u7d42\u4e86\uff1a${result}`);
   render();
+  sendOnlineState();
 }
 
 function countStones() {
@@ -565,7 +635,7 @@ function startTurnTimer() {
   if (timeControl.type === 'chess') remainingSeconds = turn === BLACK ? clocks.black : clocks.white;
   renderTimer();
 
-  if (timeControl.type === 'none' || gameOver || isCpuTurn()) return;
+  if (timeControl.type === 'none' || gameOver || isCpuTurn() || (isOnlineGame() && !isOnlineHost())) return;
 
   timerId = setInterval(() => {
     if (timeControl.type === 'turn') {
@@ -578,6 +648,7 @@ function startTurnTimer() {
       remainingSeconds = clocks.white;
     }
     renderTimer();
+    sendOnlineState();
 
     if (remainingSeconds <= 0) {
       clearInterval(timerId);
@@ -608,6 +679,7 @@ function endGameByTime() {
   statusMessage = `${playerName(turn)}\u306f\u6642\u9593\u5207\u308c\u3002${playerName(winner)}\u306e\u52dd\u3061\uff01`;
   moveHistory.push(`\u6642\u9593\u5207\u308c\uff1a${playerName(winner)}\u306e\u52dd\u3061`);
   render();
+  sendOnlineState();
 }
 
 function saveSnapshot() {
@@ -650,7 +722,10 @@ function undoMove() {
   startTurnTimer();
 }
 
-elements.restart.addEventListener('click', resetGame);
+elements.restart.addEventListener('click', () => {
+  if (isOnlineGame() && !isOnlineHost()) return;
+  resetGame();
+});
 elements.undo.addEventListener('click', undoMove);
 elements.start.addEventListener('click', startGameFromHome);
 elements.home.addEventListener('click', returnHome);
@@ -658,6 +733,30 @@ elements.homeMode.addEventListener('change', updateHomeCpuSetting);
 elements.mode.addEventListener('change', resetGame);
 elements.difficulty.addEventListener('change', resetGame);
 elements.timeLimit.addEventListener('change', resetGame);
+
+window.addEventListener('online:assignment', (event) => {
+  const { settings } = event.detail;
+  elements.mode.value = 'online';
+  if (settings) {
+    elements.homeScoreMode.value = settings.scoreMode;
+    elements.homeTimeLimit.value = settings.timeControl;
+  }
+  const player = window.onlineGame.isHost ? event.detail.hostColor : 3 - event.detail.hostColor;
+  document.getElementById('online_status').textContent = `あなたは${playerName(player)}です。開始できます。`;
+});
+
+window.addEventListener('online:message', (event) => {
+  const message = event.detail;
+  if (message.type === 'state') {
+    applyOnlineState(message.state);
+    return;
+  }
+  const validPosition = Number.isInteger(message.row) && Number.isInteger(message.column)
+    && message.row >= 0 && message.row < SIZE && message.column >= 0 && message.column < SIZE;
+  if (message.type === 'move' && validPosition && isOnlineGame() && message.player === turn && onlinePlayer() !== turn) {
+    makeMove(message.row, message.column, true);
+  }
+});
 
 resetGame();
 updateHomeCpuSetting();

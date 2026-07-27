@@ -56,20 +56,56 @@ document.addEventListener('DOMContentLoaded', () => {
   byId('join_room_button').addEventListener('click', () => joinOnlineRoom().catch(e => onlineStatus(`参加できません：${e.message}`)));
 });
 const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-function wireChannel(channel) {
-  channel.onopen = () => onlineStatus('P2P接続が完了しました。');
-  channel.onmessage = (event) => console.info('P2P message:', event.data);
+function publishOnlineEvent(name, detail) {
+  window.dispatchEvent(new CustomEvent(name, { detail }));
+}
+
+function wireChannel(channel, isHost) {
+  const onlineGame = window.onlineGame = {
+    channel,
+    isHost,
+    assignment: null,
+    send(message) {
+      if (channel.readyState === 'open') channel.send(JSON.stringify(message));
+    }
+  };
+  channel.onopen = () => {
+    onlineStatus('P2P接続が完了しました。');
+    if (!isHost) return;
+
+    // The host alone chooses colours, so both peers agree on ownership.
+    const assignment = {
+      hostColor: Math.random() < 0.5 ? 1 : 2,
+      settings: {
+        scoreMode: byId('home_score_mode').value,
+        timeControl: byId('home_time_limit').value
+      }
+    };
+    onlineGame.assignment = assignment;
+    onlineGame.send({ type: 'assignment', ...assignment });
+    publishOnlineEvent('online:assignment', assignment);
+  };
+  channel.onmessage = (event) => {
+    let message;
+    try { message = JSON.parse(event.data); } catch { return; }
+    if (message.type === 'assignment') {
+      onlineGame.assignment = { hostColor: message.hostColor, settings: message.settings };
+      publishOnlineEvent('online:assignment', onlineGame.assignment);
+      return;
+    }
+    publishOnlineEvent('online:message', message);
+  };
   channel.onclose = () => onlineStatus('P2P接続が切断されました。');
 }
 async function startHostPeer(roomId) {
-  const { db } = await window.firebaseReady; const roomRef = doc(db, 'rooms', roomId); const peer = new RTCPeerConnection(rtcConfig); wireChannel(peer.createDataChannel('link-burst'));
+  const { db } = await window.firebaseReady; const roomRef = doc(db, 'rooms', roomId); const peer = new RTCPeerConnection(rtcConfig); wireChannel(peer.createDataChannel('link-burst'), true);
   peer.onicecandidate = ({ candidate }) => { if (candidate) updateDoc(roomRef, { hostCandidate: candidate.toJSON() }); };
   const offer = await peer.createOffer(); await peer.setLocalDescription(offer); await updateDoc(roomRef, { offer: { type: offer.type, sdp: offer.sdp } });
   onSnapshot(roomRef, async (snapshot) => { const data = snapshot.data(); if (data?.answer && !peer.currentRemoteDescription) await peer.setRemoteDescription(data.answer); if (data?.guestCandidate) await peer.addIceCandidate(data.guestCandidate); });
 }
 async function startGuestPeer(roomId) {
   const { db } = await window.firebaseReady; const roomRef = doc(db, 'rooms', roomId); const room = await getDoc(roomRef); const peer = new RTCPeerConnection(rtcConfig);
-  peer.ondatachannel = (event) => wireChannel(event.channel); peer.onicecandidate = ({ candidate }) => { if (candidate) updateDoc(roomRef, { guestCandidate: candidate.toJSON() }); };
+  peer.ondatachannel = (event) => wireChannel(event.channel, false); peer.onicecandidate = ({ candidate }) => { if (candidate) updateDoc(roomRef, { guestCandidate: candidate.toJSON() }); };
   await peer.setRemoteDescription(room.data().offer); const answer = await peer.createAnswer(); await peer.setLocalDescription(answer); await updateDoc(roomRef, { answer: { type: answer.type, sdp: answer.sdp } });
   onSnapshot(roomRef, async (snapshot) => { const data = snapshot.data(); if (data?.hostCandidate) await peer.addIceCandidate(data.hostCandidate); });
 }
