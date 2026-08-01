@@ -89,9 +89,9 @@ async function joinOnlineRoom() {
   const roomRef = doc(db, 'rooms', roomId);
   const room = await getDoc(roomRef);
 
-  if (!room.exists() || room.data().guestId) {
-    throw new Error('参加できないルームです。');
-  }
+  if (!room.exists()) throw new Error('ルームが見つかりません。招待コードを確認してください。');
+  if (room.data().hostId === uid) throw new Error('このルームの作成者です。別のブラウザまたは別端末で参加してください。');
+  if (room.data().guestId) throw new Error('このルームにはすでに参加者がいます。');
 
   await updateDoc(roomRef, { guestId: uid, status: 'joining' });
   window.onlineRoomId = roomId;
@@ -248,3 +248,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   updateLobbyVisibility();
 });
+
+function setJoinControlsVisible(visible) {
+  byId('join_room_url').closest('label').style.display = visible ? '' : 'none';
+  byId('join_room_button').style.display = visible ? '' : 'none';
+}
