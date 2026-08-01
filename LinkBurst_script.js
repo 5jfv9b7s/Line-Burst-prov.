@@ -860,3 +860,19 @@ window.addEventListener('online:message', (event) => {
 
 resetGame();
 updateHomeCpuSetting();
+
+window.addEventListener('online:assignment', () => {
+  const host = window.onlineGame.isHost;
+  elements.start.disabled = !host;
+  elements.start.textContent = host ? '対局を開始' : 'ホストの開始待ち';
+  document.getElementById('online_status').textContent = host
+    ? '色が決まりました。ホストが対局を開始してください。'
+    : '色が決まりました。ホストの開始を待っています。';
+});
+document.addEventListener('click', (event) => {
+  if (event.target === elements.start && elements.homeMode.value === 'online' && window.onlineGame?.assignment && !window.onlineGame.isHost) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    document.getElementById('online_status').textContent = 'ホストが対局を開始するのを待っています。';
+  }
+}, true);
