@@ -250,6 +250,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function setJoinControlsVisible(visible) {
-  byId('join_room_url').closest('label').style.display = visible ? '' : 'none';
+  byId('join_room_url').closest('label').style.display = '';
   byId('join_room_button').style.display = visible ? '' : 'none';
 }
