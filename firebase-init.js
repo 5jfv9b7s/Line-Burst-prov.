@@ -76,7 +76,8 @@ async function createOnlineRoom() {
 
   byId('join_room_url').value = room.id;
   window.onlineRoomId = room.id;
-  setOnlineStatus('ルームを作成しました。参加者の接続を待っています。');
+  setJoinControlsVisible(false);
+  setOnlineStatus('接続待ち：招待URLを相手へ送信してください。');
   await startHostPeer(room.id);
 }
 
