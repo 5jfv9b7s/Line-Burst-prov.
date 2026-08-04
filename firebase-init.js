@@ -165,10 +165,16 @@ function wireChannel(channel, isHost) {
 
 function watchHostRoom(roomRef, peer) {
   const addedGuestCandidates = new Set();
+  let participantNotified = false;
 
   onSnapshot(roomRef, async (snapshot) => {
     const data = snapshot.data();
     if (!data) return;
+
+    if (data.guestId && !participantNotified) {
+      participantNotified = true;
+      setOnlineStatus('対戦相手が参加しました。P2P接続を開始します。');
+    }
 
     if (data.answer && !peer.currentRemoteDescription) {
       await peer.setRemoteDescription(data.answer);
